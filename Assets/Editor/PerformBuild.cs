@@ -1,74 +1,82 @@
-﻿// C# example
-using UnityEditor;
-using System.IO;
-using System.Collections;
-using UnityEngine;
-using System.Collections.Generic;
+﻿using System;  
+using System.Collections.Generic;  
+using System.IO;  
+using UnityEditor;  
+using UnityEngine;  
+using Object = UnityEngine.Object;  
 
-class PerformBuild
-{
-	static string[] GetBuildScenes()
-	{
-		List<string> names = new List<string>();
+public class PerformBuild  
+{   
+	[MenuItem("Automated/Automated Android Build")]  
+	static void CommandLineBuildOnCheckinAndroid()  
+	{  
+		const BuildTarget target = BuildTarget.Android;  
 		
-		foreach(EditorBuildSettingsScene e in EditorBuildSettings.scenes)
-		{
-			if(e==null)
-				continue;
+		string[] levels = GetBuildScenes();  
+		const string locationPathName = "AngryBotsAndroid.apk";  
+		const BuildOptions options = BuildOptions.None;  
+		
+		DeleteStreamingAssets();  
+		BuildPipelineBuildAssetBundle(target);  
+		BuildPipelineBuildPlayer(levels, locationPathName, target, options);  
+	}  
+	
+	private static string[] GetBuildScenes()  
+	{  
+		List<string> names = new List<string>();  
+		foreach (EditorBuildSettingsScene e in EditorBuildSettings.scenes)  
+		{  
+			if (e == null) { continue; }  
+			if (e.enabled) { names.Add(e.path); }  
+		}  
+		return names.ToArray();  
+	}  
+	
+	private static void DeleteStreamingAssets()  
+	{  
+		// Delete streaming assets (downloaded from source control).  
+		string[] filesToDelete = Directory.GetFiles(Application.streamingAssetsPath, "*.unity3d*");  
+		foreach (string file in filesToDelete)   
+		{  
+			File.Delete(file);  
+		}  
+	}  
+	
+	private static void BuildPipelineBuildAssetBundle(BuildTarget buildTarget)  
+	{  
+		string[] assetPaths = AssetDatabase.GetAllAssetPaths();  
+		
+		string pathName = Application.streamingAssetsPath;  
+		foreach (string f in assetPaths)  
+		{  
+			if (!f.Contains("Master Assets")) { continue; }  
+			Object a = Resources.LoadAssetAtPath(f, typeof(Object));  
+			if (a == null) { continue; }  
 			
-			if(e.enabled)
-				names.Add(e.path);
-		}
-		return names.ToArray();
-	}
+			Object[] asset = new Object[1];  
+			asset[0] = a;  
+			string assetType = a.GetType().Name;  
+			if (assetType.Equals("Object")) { continue; }  
+			
+			string assetName = assetType + "_" + asset[0].name + ".unity3d";  
+			string fullName = pathName + "/" + assetName;  
+			
+			const BuildAssetBundleOptions options = BuildAssetBundleOptions.CollectDependencies | BuildAssetBundleOptions.CompleteAssets | BuildAssetBundleOptions.UncompressedAssetBundle;  
+			
+			BuildPipeline.BuildAssetBundle(a, asset, fullName, options, buildTarget);  
+		}  
+	}  
 	
-	static string GetBuildPath()
-	{
-		return "build/iPhone";
-	}
-	
-	[UnityEditor.MenuItem("CUSTOM/Test Command Line Build Step")]
-	static void CommandLineBuild ()
-	{
-		Debug.Log("Command line build\n------------------\n------------------");
+	private static void BuildPipelineBuildPlayer(string[] levels, string locationPathName, BuildTarget target, BuildOptions options)  
+	{  
+		PlayerSettings.productName = "Angry Bots";  
+		PlayerSettings.bundleIdentifier = "com.studiosstevepro.angrybots";  
+		PlayerSettings.bundleVersion = "1.0";  
 		
-		string[] scenes = GetBuildScenes();
-		string path = GetBuildPath();
-		if(scenes == null || scenes.Length==0 || path == null)
-			return;
-		
-		Debug.Log(string.Format("Path: \"{0}\"", path));
-		for(int i=0; i<scenes.Length; ++i)
-		{
-			Debug.Log(string.Format("Scene[{0}]: \"{1}\"", i, scenes[i]));
-		}
-		
-		Debug.Log("Starting Build!");
-		BuildPipeline.BuildPlayer(scenes, path, BuildTarget.iPhone, BuildOptions.None);
-	}
-	
-	static string GetBuildPathAndroid()
-	{
-		return "build/android";
-	}
-	
-	[UnityEditor.MenuItem("CUSTOM/Test Command Line Build Step Android")]
-	static void CommandLineBuildAndroid ()
-	{
-		Debug.Log("Command line build android version\n------------------\n------------------");
-		
-		string[] scenes = GetBuildScenes();
-		string path = GetBuildPathAndroid();
-		if(scenes == null || scenes.Length==0 || path == null)
-			return;
-		
-		Debug.Log(string.Format("Path: \"{0}\"", path));
-		for(int i=0; i<scenes.Length; ++i)
-		{
-			Debug.Log(string.Format("Scene[{0}]: \"{1}\"", i, scenes[i]));
-		}
-		
-		Debug.Log("Starting Android Build!");
-		BuildPipeline.BuildPlayer(scenes, path, BuildTarget.Android, BuildOptions.None);
-	}
-}
+		String error = BuildPipeline.BuildPlayer(levels, locationPathName, target, options);  
+		if (!String.IsNullOrEmpty(error))  
+		{  
+			throw new System.Exception("Build failed: " + error);  
+		}    
+	}  
+}  
