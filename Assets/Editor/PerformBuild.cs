@@ -16,7 +16,7 @@ public class PerformBuild
 		const string locationPathName = "AngryBotsAndroid.apk";  
 		const BuildOptions options = BuildOptions.None;  
 		
-		DeleteStreamingAssets();  
+		//DeleteStreamingAssets();  
 		BuildPipelineBuildAssetBundle(target);  
 		BuildPipelineBuildPlayer(levels, locationPathName, target, options);  
 	}  
